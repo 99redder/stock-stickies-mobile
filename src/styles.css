@@ -146,10 +146,12 @@ button { -webkit-tap-highlight-color: transparent; }
 .password-field { position: relative; display: block; }
 .password-field input { padding-right: 68px; }
 .password-field button { position: absolute; top: 12px; right: 5px; height: 42px; padding: 0 12px; border: 0; border-radius: 8px; color: #67e8f9; background: transparent; font-size: 13px; font-weight: 800; }
-.primary-button, .google-button { width: 100%; min-height: 52px; border-radius: 10px; font-size: 16px; font-weight: 800; }
+.primary-button { width: 100%; min-height: 52px; border-radius: 10px; font-size: 16px; font-weight: 800; }
 .primary-button { border: 1px solid #22d3ee; color: #083344; background: #22d3ee; box-shadow: 0 0 18px rgba(34,211,238,.16); }
-.google-button { border: 1px solid var(--line); color: #e7ecf2; background: #171e29; }
-.primary-button:disabled, .google-button:disabled { opacity: .55; }
+.primary-button:disabled { opacity: .55; }
+.google-signin-slot { width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 10px; }
+.google-signin-slot > div, .google-signin-slot iframe { max-width: 100% !important; }
+.google-signin-slot.disabled { opacity: .55; pointer-events: none; }
 .divider { height: 40px; display: flex; align-items: center; gap: 10px; color: #667386; font-size: 10px; }
 .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .form-error { margin: 0 0 14px; padding: 10px 11px; border: 1px solid rgba(239,68,68,.28); border-radius: 9px; color: #fda4af; background: rgba(127,29,29,.18); font-size: 13px; line-height: 1.4; }

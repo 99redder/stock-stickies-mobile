@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "sync-auth-helpers": "node scripts/sync-firebase-auth-helpers.mjs",
-    "build": "npm run sync-auth-helpers && vite build",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {

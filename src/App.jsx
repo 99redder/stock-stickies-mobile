@@ -7,9 +7,7 @@ import { Chart } from 'chart.js/auto'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
-  authDomain: window.location.hostname === 'mobile.stockstickies.com'
-    ? 'mobile.stockstickies.com'
-    : import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
@@ -31,6 +29,8 @@ try {
 
 const ASKK_API_URL = import.meta.env.VITE_ASKK_API_URL
   || 'https://stock-stickies-askk.99redder.workers.dev/api/ask-k'
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
+  || '896398882822-9rdud5bpkdkcg6afqhgfus2cc7loc5va.apps.googleusercontent.com'
 
 const ACCOUNTS = [
   { id: 'individual', label: 'Individual', short: 'Taxable', strategy: 'Taxable individual brokerage — primarily swing trades and shorter-horizon positions.' },
@@ -299,10 +299,61 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const googleButtonRef = useRef(null)
 
   useEffect(() => {
-    if (!auth) return
-    auth.getRedirectResult().catch((reason) => setError(friendlyAuthError(reason)))
+    let cancelled = false
+
+    const renderGoogleButton = () => {
+      if (cancelled || !window.google?.accounts?.id || !googleButtonRef.current) return
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: async (response) => {
+          setBusy(true)
+          setError('')
+          try {
+            if (!auth || !response?.credential) throw new Error('Google did not return a sign-in credential.')
+            const credential = firebase.auth.GoogleAuthProvider.credential(response.credential)
+            await auth.signInWithCredential(credential)
+          } catch (reason) {
+            setError(friendlyAuthError(reason))
+          } finally {
+            setBusy(false)
+          }
+        },
+      })
+      googleButtonRef.current.replaceChildren()
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        type: 'standard',
+        theme: 'filled_black',
+        size: 'large',
+        text: 'continue_with',
+        shape: 'rectangular',
+        logo_alignment: 'left',
+        width: Math.min(350, googleButtonRef.current.clientWidth),
+      })
+    }
+
+    const existingScript = document.querySelector('script[data-google-identity]')
+    if (existingScript) {
+      if (window.google?.accounts?.id) renderGoogleButton()
+      else existingScript.addEventListener('load', renderGoogleButton, { once: true })
+    } else {
+      const script = document.createElement('script')
+      script.src = 'https://accounts.google.com/gsi/client'
+      script.async = true
+      script.defer = true
+      script.dataset.googleIdentity = 'true'
+      script.addEventListener('load', renderGoogleButton, { once: true })
+      script.addEventListener('error', () => {
+        if (!cancelled) setError('Google sign-in could not load. You can still sign in with email.')
+      }, { once: true })
+      document.head.appendChild(script)
+    }
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const signIn = async (event) => {
@@ -315,20 +366,6 @@ function Login() {
     } catch (reason) {
       setError(friendlyAuthError(reason))
     } finally {
-      setBusy(false)
-    }
-  }
-
-  const googleSignIn = async () => {
-    setBusy(true)
-    setError('')
-    try {
-      if (!auth) throw new Error('Firebase is not configured for this app.')
-      const provider = new firebase.auth.GoogleAuthProvider()
-      provider.setCustomParameters({ prompt: 'select_account' })
-      await auth.signInWithRedirect(provider)
-    } catch (reason) {
-      setError(friendlyAuthError(reason))
       setBusy(false)
     }
   }
@@ -376,9 +413,7 @@ function Login() {
           <button className="primary-button" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
         </form>
         <div className="divider"><span>or</span></div>
-        <button className="google-button" type="button" onClick={googleSignIn} disabled={busy}>
-          {busy ? 'Opening sign in…' : 'Continue with Google'}
-        </button>
+        <div className={`google-signin-slot ${busy ? 'disabled' : ''}`} ref={googleButtonRef} aria-label="Continue with Google" />
         <p className="readonly-note"><span>●</span> This app can read your Stock Stickies data but never edits it.</p>
       </section>
     </main>
