@@ -4,6 +4,7 @@ import 'firebase/compat/auth'
 import 'firebase/compat/firestore'
 import 'firebase/compat/app-check'
 import { Chart } from 'chart.js/auto'
+import ChartDataLabels from 'chartjs-plugin-datalabels'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
@@ -46,7 +47,7 @@ const ACCOUNTS = [
 const ACCOUNT_IDS = ACCOUNTS.map((account) => account.id)
 const UNASSIGNED = 'unassigned'
 const CHART_COLORS = ['#9ca3af', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#f97316']
-const DONUT_MIN_SLICE_PERCENT = 2
+const DONUT_MIN_SLICE_PERCENT = 4
 const MAX_DONUT_STOCK_SLICES = 8
 
 const normalizeTicker = (value) => String(value || '').trim().toUpperCase()
@@ -209,6 +210,7 @@ function PortfolioDonut({ positions, total, cashValue }) {
     chartRef.current?.destroy()
     chartRef.current = new Chart(ctx, {
       type: 'doughnut',
+      plugins: [ChartDataLabels],
       data: {
         labels: slices.map((slice) => slice.ticker),
         datasets: [{
@@ -226,6 +228,29 @@ function PortfolioDonut({ positions, total, cashValue }) {
         animation: { duration: 350 },
         plugins: {
           legend: { display: false },
+          datalabels: {
+            anchor: 'center',
+            align: 'center',
+            clamp: true,
+            clip: true,
+            color: '#f8fafc',
+            textStrokeColor: 'rgba(8, 11, 16, .82)',
+            textStrokeWidth: 3,
+            font: (context) => {
+              const label = String(context.chart.data.labels?.[context.dataIndex] || '')
+              const value = Number(context.dataset.data?.[context.dataIndex] || 0)
+              const percent = total > 0 ? (value / total) * 100 : 0
+              return {
+                family: 'Inter, ui-sans-serif, system-ui, sans-serif',
+                size: percent < 4 || label.length > 5 ? 8 : (label.length > 3 ? 9 : 10),
+                weight: '800',
+              }
+            },
+            formatter: (_value, context) => {
+              const label = String(context.chart.data.labels?.[context.dataIndex] || '')
+              return label.startsWith('Other') ? 'OTHER' : label.toUpperCase()
+            },
+          },
           tooltip: {
             backgroundColor: '#202733',
             titleColor: '#fff',
