@@ -37,7 +37,7 @@ const ACCOUNTS = [
 ]
 const ACCOUNT_IDS = ACCOUNTS.map((account) => account.id)
 const UNASSIGNED = 'unassigned'
-const CHART_COLORS = ['#39d98a', '#5b8cff', '#a977ff', '#ff9f43', '#ff5c75', '#34c7c7', '#f6c85f', '#8ca6db', '#ef7c8e', '#7bd389']
+const CHART_COLORS = ['#9ca3af', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#f97316']
 
 const normalizeTicker = (value) => String(value || '').trim().toUpperCase()
 const getAccount = (note) => ACCOUNT_IDS.includes(note?.account) ? note.account : UNASSIGNED
@@ -102,6 +102,27 @@ function Icon({ name, size = 20 }) {
     install: <><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></>,
   }
   return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>
+}
+
+function StockStickiesLogo({ compact = false }) {
+  return (
+    <div className={`stock-logo ${compact ? 'compact' : ''}`} aria-label="Stock Stickies">
+      <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+        <rect x="2" y="2" width="44" height="44" rx="4" fill="#1a1a2e" stroke="#00ff9f" strokeWidth="2" />
+        <path d="M8 32 L16 20 L22 26 L32 12 L40 18" stroke="#39ff14" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="16" cy="20" r="3" fill="#39ff14" />
+        <circle cx="32" cy="12" r="3" fill="#39ff14" />
+        <rect x="6" y="36" width="8" height="6" fill="#39ff14" opacity=".7" />
+        <rect x="16" y="33" width="8" height="9" fill="#39ff14" opacity=".8" />
+        <rect x="26" y="30" width="8" height="12" fill="#39ff14" opacity=".9" />
+        <rect x="36" y="34" width="6" height="8" fill="#39ff14" opacity=".6" />
+      </svg>
+      <span className="stock-wordmark">
+        <strong>STOCK</strong>
+        <span>STICKIES</span>
+      </span>
+    </div>
+  )
 }
 
 function PortfolioDonut({ positions, total, cashValue }) {
@@ -291,9 +312,8 @@ function Login() {
   return (
     <main className="login-page">
       <section className="login-card">
-        <div className="brand-mark"><span /><span /><span /></div>
+        <StockStickiesLogo />
         <p className="eyebrow">MOBILE COMPANION</p>
-        <h1>Stock Stickies</h1>
         <p className="login-copy">Your portfolio, distilled for your phone. View-only and always dark.</p>
         <form onSubmit={signIn}>
           <label>Email<input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
@@ -589,7 +609,7 @@ export default function App() {
     setInstallEvent(null)
   }
 
-  if (!authReady) return <div className="splash"><div className="brand-mark"><span /><span /><span /></div><p>Opening your portfolio…</p></div>
+  if (!authReady) return <div className="splash"><StockStickiesLogo /><p>Opening your portfolio…</p></div>
   if (!user) return <Login />
   if (!dataReady) return <div className="splash"><div className="loader" /><p>Loading your portfolio…</p></div>
 
@@ -602,8 +622,8 @@ export default function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <div className="brand-mark small"><span /><span /><span /></div>
-          <div><strong>Stock Stickies</strong><small>Mobile Portfolio</small></div>
+          <StockStickiesLogo compact />
+          <small>Mobile Portfolio</small>
         </div>
         <div className="top-actions">
           {installEvent && <button className="icon-button" type="button" onClick={install} aria-label="Install app"><Icon name="install" /></button>}
