@@ -16,11 +16,17 @@ const firebaseConfig = {
 
 let auth = null
 let db = null
+let authPersistenceReady = Promise.resolve()
 try {
   if (!firebase.apps.length) firebase.initializeApp(firebaseConfig)
   const appCheckKey = import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY || ''
   if (appCheckKey) firebase.appCheck().activate(appCheckKey, false)
   auth = firebase.auth()
+  authPersistenceReady = auth
+    .setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+    .catch((error) => {
+      console.warn('Persistent sign-in is unavailable on this device.', error)
+    })
   db = firebase.firestore()
   db.enablePersistence({ cache: 'owning-tab' }).catch(() => {})
 } catch (error) {
@@ -40,6 +46,8 @@ const ACCOUNTS = [
 const ACCOUNT_IDS = ACCOUNTS.map((account) => account.id)
 const UNASSIGNED = 'unassigned'
 const CHART_COLORS = ['#9ca3af', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#f97316']
+const DONUT_MIN_SLICE_PERCENT = 2
+const MAX_DONUT_STOCK_SLICES = 8
 
 const normalizeTicker = (value) => String(value || '').trim().toUpperCase()
 const getAccount = (note) => ACCOUNT_IDS.includes(note?.account) ? note.account : UNASSIGNED
@@ -73,6 +81,30 @@ const friendlyAuthError = (reason) => {
   return String(reason?.message || 'Unable to sign in.')
     .replace(/^Firebase:\s*/i, '')
     .replace(/\s*\(auth\/[^)]+\)\.?$/i, '')
+}
+
+const formatDateTime = (value) => {
+  if (!value) return 'Not available'
+  const date = value instanceof Date ? value : new Date(value)
+  if (!Number.isFinite(date.getTime())) return 'Not available'
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'numeric',
+    day: 'numeric',
+    year: '2-digit',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date).replace(',', ' at')
+}
+
+const formatDate = (value) => {
+  if (!value) return 'Not available'
+  const date = value instanceof Date ? value : new Date(value)
+  if (!Number.isFinite(date.getTime())) return 'Not available'
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'numeric',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date)
 }
 
 async function getEncryptionKey(userId) {
@@ -149,10 +181,29 @@ function PortfolioDonut({ positions, total, cashValue }) {
   useEffect(() => {
     if (!canvasRef.current || !positions.length) return undefined
     const cash = positions.filter((position) => position.isCash)
-    const stocks = positions.filter((position) => !position.isCash)
+    const stocks = positions
+      .filter((position) => !position.isCash)
+      .sort((a, b) => b.value - a.value)
+    const visibleStocks = stocks
+      .filter((position) => total > 0 && (position.value / total) * 100 >= DONUT_MIN_SLICE_PERCENT)
+      .slice(0, MAX_DONUT_STOCK_SLICES)
+    const visibleIds = new Set(visibleStocks.map((position) => position.id))
+    const smallStocks = stocks.filter((position) => !visibleIds.has(position.id))
     const slices = [
-      ...(cash.length ? [{ ticker: 'Cash', value: cash.reduce((sum, item) => sum + item.value, 0) }] : []),
-      ...stocks,
+      ...(cash.length ? [{
+        ticker: 'Cash',
+        value: cash.reduce((sum, item) => sum + item.value, 0),
+        color: '#9ca3af',
+      }] : []),
+      ...visibleStocks.map((position, index) => ({
+        ...position,
+        color: CHART_COLORS[(index + 1) % CHART_COLORS.length],
+      })),
+      ...(smallStocks.length ? [{
+        ticker: `Other (${smallStocks.length})`,
+        value: smallStocks.reduce((sum, item) => sum + item.value, 0),
+        color: '#475569',
+      }] : []),
     ]
     const ctx = canvasRef.current.getContext('2d')
     chartRef.current?.destroy()
@@ -162,7 +213,7 @@ function PortfolioDonut({ positions, total, cashValue }) {
         labels: slices.map((slice) => slice.ticker),
         datasets: [{
           data: slices.map((slice) => slice.value),
-          backgroundColor: slices.map((_, index) => CHART_COLORS[index % CHART_COLORS.length]),
+          backgroundColor: slices.map((slice) => slice.color),
           borderColor: '#11161f',
           borderWidth: 3,
           hoverOffset: 5,
@@ -261,12 +312,12 @@ function AskK({ portfolio }) {
   return (
     <>
       <button className="ask-k-fab" type="button" onClick={() => setOpen(true)} aria-label="Open Ask K">
-        <span>K</span> Ask K
+        <img src="/assets/ask-k-profile.png" alt="" /> Ask K
       </button>
       {open && <button className="scrim" type="button" aria-label="Close Ask K" onClick={() => setOpen(false)} />}
       <aside className={`ask-drawer ${open ? 'open' : ''}`} aria-hidden={!open} aria-label="Ask K portfolio assistant">
         <header className="ask-header">
-          <div className="k-avatar">K</div>
+          <img className="k-avatar" src="/assets/ask-k-profile.png" alt="K" />
           <div><strong>Ask K</strong><small>Portfolio analysis assistant</small></div>
           <button className="icon-button" type="button" onClick={() => setOpen(false)} aria-label="Close"><Icon name="close" /></button>
         </header>
@@ -293,6 +344,78 @@ function AskK({ portfolio }) {
   )
 }
 
+function ProfileSheet({
+  open,
+  onClose,
+  onSignOut,
+  user,
+  nickname,
+  profilePhoto,
+  portfolioUpdatedAt,
+  positionCount,
+}) {
+  useEffect(() => {
+    if (!open) return undefined
+    const previousOverflow = document.body.style.overflow
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') onClose()
+    }
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open, onClose])
+
+  if (!open) return null
+
+  const displayName = nickname || user.displayName || 'Stock Stickies member'
+  const initial = (displayName || user.email || '?').charAt(0).toUpperCase()
+
+  return (
+    <>
+      <button className="scrim" type="button" aria-label="Close profile" onClick={onClose} />
+      <aside className="profile-sheet" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+        <div className="sheet-handle" aria-hidden="true" />
+        <header className="profile-sheet-header">
+          <div>
+            <p className="eyebrow">YOUR ACCOUNT</p>
+            <h2 id="profile-title">Profile</h2>
+          </div>
+          <button className="icon-button" type="button" onClick={onClose} aria-label="Close profile" autoFocus>
+            <Icon name="close" />
+          </button>
+        </header>
+
+        <div className="profile-identity">
+          {profilePhoto ? <img src={profilePhoto} alt="" /> : <span>{initial}</span>}
+          <div>
+            <strong>{displayName}</strong>
+            <small>View-only mobile access</small>
+          </div>
+        </div>
+
+        <dl className="profile-details">
+          <div><dt>Email</dt><dd>{user.email || 'Not available'}</dd></div>
+          <div><dt>Member since</dt><dd>{formatDate(user.metadata?.creationTime)}</dd></div>
+          <div><dt>Last sign-in</dt><dd>{formatDateTime(user.metadata?.lastSignInTime)}</dd></div>
+          <div><dt>Portfolio data</dt><dd>{portfolioUpdatedAt ? `Updated ${formatDateTime(portfolioUpdatedAt)}` : 'Update time unavailable'}</dd></div>
+          <div><dt>Positions</dt><dd>{positionCount.toLocaleString()}</dd></div>
+        </dl>
+
+        <p className="persistence-note">
+          This familiar device keeps you signed in securely until you choose Log out.
+        </p>
+        <button className="logout-button" type="button" onClick={onSignOut}>
+          <Icon name="logout" />
+          Log out
+        </button>
+      </aside>
+    </>
+  )
+}
+
 function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -313,6 +436,7 @@ function Login() {
           setError('')
           try {
             if (!auth || !response?.credential) throw new Error('Google did not return a sign-in credential.')
+            await authPersistenceReady
             const credential = firebase.auth.GoogleAuthProvider.credential(response.credential)
             await auth.signInWithCredential(credential)
           } catch (reason) {
@@ -362,6 +486,7 @@ function Login() {
     setError('')
     try {
       if (!auth) throw new Error('Firebase is not configured for this app.')
+      await authPersistenceReady
       await auth.signInWithEmailAndPassword(email.trim().toLowerCase(), password)
     } catch (reason) {
       setError(friendlyAuthError(reason))
@@ -432,6 +557,8 @@ export default function App() {
   const [watchList, setWatchList] = useState([])
   const [nickname, setNickname] = useState('')
   const [profilePhoto, setProfilePhoto] = useState('')
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [portfolioUpdatedAt, setPortfolioUpdatedAt] = useState(null)
   const [finnhubKey, setFinnhubKey] = useState('')
   const [prices, setPrices] = useState({})
   const [lastUpdated, setLastUpdated] = useState(null)
@@ -457,14 +584,25 @@ export default function App() {
       setAuthReady(true)
       return undefined
     }
-    return auth.onAuthStateChanged((nextUser) => {
-      setUser(nextUser)
-      setAuthReady(true)
-      if (!nextUser) {
-        setDataReady(false)
-        setNotes([])
-      }
+    let unsubscribe = () => {}
+    let cancelled = false
+    authPersistenceReady.finally(() => {
+      if (cancelled) return
+      unsubscribe = auth.onAuthStateChanged((nextUser) => {
+        setUser(nextUser)
+        setAuthReady(true)
+        if (!nextUser) {
+          setDataReady(false)
+          setNotes([])
+          setPortfolioUpdatedAt(null)
+          setProfileOpen(false)
+        }
+      })
     })
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
   }, [])
 
   useEffect(() => {
@@ -493,6 +631,11 @@ export default function App() {
       setWatchList(Array.isArray(data.watchList) ? data.watchList : [])
       setNickname(data.nickname || '')
       setProfilePhoto(data.profilePhoto || user.photoURL || '')
+      setPortfolioUpdatedAt(
+        typeof data.updatedAt?.toDate === 'function'
+          ? data.updatedAt.toDate()
+          : (data.updatedAt ? new Date(data.updatedAt) : null),
+      )
       setFinnhubKey(await decryptApiKey(data.finnhubApiKey, user.uid))
       setPrices((current) => {
         const seeded = { ...current }
@@ -700,6 +843,11 @@ export default function App() {
     setInstallEvent(null)
   }
 
+  const signOut = async () => {
+    setProfileOpen(false)
+    await auth.signOut()
+  }
+
   if (!authReady) return <div className="splash"><StockStickiesLogo /><p>Opening your portfolio…</p></div>
   if (!user) return <Login />
   if (!dataReady) return <div className="splash"><div className="loader" /><p>Loading your portfolio…</p></div>
@@ -718,9 +866,9 @@ export default function App() {
         </div>
         <div className="top-actions">
           {installEvent && <button className="icon-button" type="button" onClick={install} aria-label="Install app"><Icon name="install" /></button>}
-          <button className="profile-button" type="button" onClick={() => auth.signOut()} aria-label="Sign out">
+          <button className="profile-button" type="button" onClick={() => setProfileOpen(true)} aria-label="Open profile">
             {profilePhoto ? <img src={profilePhoto} alt="" /> : <span>{(nickname || user.email || '?').charAt(0).toUpperCase()}</span>}
-            <Icon name="logout" size={16} />
+            <Icon name="chevron" size={15} />
           </button>
         </div>
       </header>
@@ -739,7 +887,10 @@ export default function App() {
           </div>
           <div className="status-line">
             <span className={missingPrices ? 'status-dot warning' : 'status-dot'} />
-            {lastUpdated ? `Quotes updated ${lastUpdated.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'Tap Update to fetch current quotes'}
+            <span className="status-copy">
+              <strong>{portfolioUpdatedAt ? `Portfolio updated ${formatDateTime(portfolioUpdatedAt)}` : 'Portfolio update time unavailable'}</strong>
+              <small>{lastUpdated ? `Prices updated ${formatDateTime(lastUpdated)}` : 'Tap Update to fetch current quotes'}</small>
+            </span>
           </div>
           {refreshMessage && <p className="refresh-message" role="status">{refreshMessage}</p>}
         </section>
@@ -821,7 +972,16 @@ export default function App() {
         )}
       </main>
 
-      <div className="readonly-pill">READ ONLY</div>
+      <ProfileSheet
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        onSignOut={signOut}
+        user={user}
+        nickname={nickname}
+        profilePhoto={profilePhoto}
+        portfolioUpdatedAt={portfolioUpdatedAt}
+        positionCount={allPositions.length}
+      />
       <AskK portfolio={askKPortfolio} />
     </div>
   )
