@@ -7,7 +7,9 @@ import { Chart } from 'chart.js/auto'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
+  authDomain: window.location.hostname === 'mobile.stockstickies.com'
+    ? 'mobile.stockstickies.com'
+    : import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
@@ -56,6 +58,21 @@ const isCrypto = (note) => note?.plaidIsCrypto === true || note?.plaidSecurityTy
 const plaidPrice = (note) => {
   const price = Number(note?.plaidInstitutionPrice)
   return Number.isFinite(price) && price > 0 ? price : 0
+}
+
+const friendlyAuthError = (reason) => {
+  const code = reason?.code || ''
+  if (['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found'].includes(code)) {
+    return 'That email or password is not correct.'
+  }
+  if (code === 'auth/invalid-email') return 'Enter a valid email address.'
+  if (code === 'auth/too-many-requests') return 'Too many attempts. Wait a few minutes and try again.'
+  if (code === 'auth/network-request-failed') return 'The connection was interrupted. Check your signal and try again.'
+  if (code === 'auth/unauthorized-domain') return 'This mobile address is not yet authorized for sign-in.'
+  if (code === 'auth/popup-blocked') return 'Your browser blocked Google sign-in. Please try the button again.'
+  return String(reason?.message || 'Unable to sign in.')
+    .replace(/^Firebase:\s*/i, '')
+    .replace(/\s*\(auth\/[^)]+\)\.?$/i, '')
 }
 
 async function getEncryptionKey(userId) {
@@ -279,8 +296,14 @@ function AskK({ portfolio }) {
 function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!auth) return
+    auth.getRedirectResult().catch((reason) => setError(friendlyAuthError(reason)))
+  }, [])
 
   const signIn = async (event) => {
     event.preventDefault()
@@ -290,7 +313,7 @@ function Login() {
       if (!auth) throw new Error('Firebase is not configured for this app.')
       await auth.signInWithEmailAndPassword(email.trim().toLowerCase(), password)
     } catch (reason) {
-      setError(reason?.message || 'Unable to sign in.')
+      setError(friendlyAuthError(reason))
     } finally {
       setBusy(false)
     }
@@ -301,10 +324,11 @@ function Login() {
     setError('')
     try {
       if (!auth) throw new Error('Firebase is not configured for this app.')
-      await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
+      const provider = new firebase.auth.GoogleAuthProvider()
+      provider.setCustomParameters({ prompt: 'select_account' })
+      await auth.signInWithRedirect(provider)
     } catch (reason) {
-      setError(reason?.message || 'Unable to sign in with Google.')
-    } finally {
+      setError(friendlyAuthError(reason))
       setBusy(false)
     }
   }
@@ -316,13 +340,45 @@ function Login() {
         <p className="eyebrow">MOBILE COMPANION</p>
         <p className="login-copy">Your portfolio, distilled for your phone. View-only and always dark.</p>
         <form onSubmit={signIn}>
-          <label>Email<input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-          <label>Password<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
+          <label>
+            Email
+            <input
+              type="email"
+              inputMode="email"
+              enterKeyHint="next"
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck="false"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Password
+            <span className="password-field">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                enterKeyHint="go"
+                autoComplete="current-password"
+                autoCapitalize="none"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
+              <button type="button" onClick={() => setShowPassword((visible) => !visible)}>
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </span>
+          </label>
           {error && <p className="form-error" role="alert">{error}</p>}
           <button className="primary-button" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
         </form>
         <div className="divider"><span>or</span></div>
-        <button className="google-button" type="button" onClick={googleSignIn} disabled={busy}>Continue with Google</button>
+        <button className="google-button" type="button" onClick={googleSignIn} disabled={busy}>
+          {busy ? 'Opening sign in…' : 'Continue with Google'}
+        </button>
         <p className="readonly-note"><span>●</span> This app can read your Stock Stickies data but never edits it.</p>
       </section>
     </main>
