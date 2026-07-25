@@ -589,6 +589,7 @@ export default function App() {
   const [lastUpdated, setLastUpdated] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMessage, setRefreshMessage] = useState('')
+  const [chartExpanded, setChartExpanded] = useState(false)
   const [accountFilter, setAccountFilter] = useState('all')
   const [sortMode, setSortMode] = useState('size-desc')
   const [search, setSearch] = useState('')
@@ -621,6 +622,7 @@ export default function App() {
           setNotes([])
           setPortfolioUpdatedAt(null)
           setProfileOpen(false)
+          setChartExpanded(false)
         }
       })
     })
@@ -934,13 +936,32 @@ export default function App() {
               ))}
             </nav>
 
-            <section className="chart-card">
-              {filteredPositions.length ? <PortfolioDonut positions={filteredPositions} total={total} cashValue={cashValue} /> : <div className="empty-chart">No positions in this account.</div>}
-              <div className="chart-stats">
-                <div><span>Positions</span><strong>{filteredPositions.length}</strong></div>
-                <div><span>Cash</span><strong>{money(cashValue)}</strong></div>
-                <div><span>CSP obligation</span><strong>{money(accountFilter === 'all' ? totalPutObligation : putObligationByAccount[accountFilter])}</strong></div>
+            <section className={`chart-card ${chartExpanded ? 'expanded' : 'minimized'}`}>
+              <div className="chart-card-header">
+                <div>
+                  <span>Portfolio allocation</span>
+                  <strong>{filteredPositions.length} positions · {money(total)}</strong>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setChartExpanded((expanded) => !expanded)}
+                  aria-expanded={chartExpanded}
+                  aria-controls="mobile-allocation-chart"
+                >
+                  {chartExpanded ? 'Minimize' : 'Maximize'}
+                  <Icon name="chevron" size={16} />
+                </button>
               </div>
+              {chartExpanded && (
+                <div id="mobile-allocation-chart">
+                  {filteredPositions.length ? <PortfolioDonut positions={filteredPositions} total={total} cashValue={cashValue} /> : <div className="empty-chart">No positions in this account.</div>}
+                  <div className="chart-stats">
+                    <div><span>Positions</span><strong>{filteredPositions.length}</strong></div>
+                    <div><span>Cash</span><strong>{money(cashValue)}</strong></div>
+                    <div><span>CSP obligation</span><strong>{money(accountFilter === 'all' ? totalPutObligation : putObligationByAccount[accountFilter])}</strong></div>
+                  </div>
+                </div>
+              )}
             </section>
 
             <section className="positions-section">
