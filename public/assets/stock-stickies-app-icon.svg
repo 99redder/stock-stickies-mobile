@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Stock Stickies app icon">
+  <defs>
+    <radialGradient id="backgroundGlow" cx="50%" cy="38%" r="72%">
+      <stop offset="0%" stop-color="#17273a"/>
+      <stop offset="62%" stop-color="#0c1420"/>
+      <stop offset="100%" stop-color="#080b10"/>
+    </radialGradient>
+    <linearGradient id="frameStroke" x1="86" y1="76" x2="430" y2="444" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00ff9f"/>
+      <stop offset="0.58" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#ff2bd6"/>
+    </linearGradient>
+    <linearGradient id="foldFill" x1="350" y1="350" x2="420" y2="420" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ff2bd6"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#backgroundGlow)"/>
+  <circle cx="256" cy="236" r="182" fill="#0c1824" opacity="0.72"/>
+
+  <path
+    d="M112 72H400C422.1 72 440 89.9 440 112V354L354 440H112C89.9 440 72 422.1 72 400V112C72 89.9 89.9 72 112 72Z"
+    fill="#101c29"
+    stroke="url(#frameStroke)"
+    stroke-width="14"
+    stroke-linejoin="round"
+    filter="url(#softGlow)"
+  />
+  <path d="M354 354H440L354 440Z" fill="url(#foldFill)" opacity="0.96"/>
+  <path d="M354 354V440L440 354" fill="none" stroke="#ff69e8" stroke-width="8" stroke-linejoin="round"/>
+
+  <path
+    d="M120 294L192 208L252 255L328 148L396 202"
+    fill="none"
+    stroke="#39ff14"
+    stroke-width="20"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    filter="url(#softGlow)"
+  />
+  <circle cx="192" cy="208" r="14" fill="#39ff14"/>
+  <circle cx="328" cy="148" r="14" fill="#39ff14"/>
+
+  <rect x="112" y="332" width="58" height="58" rx="8" fill="#39ff14" opacity="0.7"/>
+  <rect x="187" y="310" width="58" height="80" rx="8" fill="#39ff14" opacity="0.82"/>
+  <rect x="262" y="278" width="58" height="112" rx="8" fill="#39ff14" opacity="0.94"/>
+  <rect x="337" y="322" width="42" height="68" rx="8" fill="#39ff14" opacity="0.76"/>
+</svg>
